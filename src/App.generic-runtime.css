@@ -1,0 +1,27 @@
+
+/* Generic automation and read-only record view */
+.studio-dialog-wide{width:min(1040px,calc(100vw - 32px));max-height:92vh;overflow:auto}
+.primitive-picker{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.primitive-picker button{display:inline-flex;align-items:center;gap:6px;border:1px solid #e4d9e8;background:#fff;border-radius:10px;padding:9px 11px;font-weight:700;color:#4b2458}
+.visual-step-list{display:grid;gap:12px}
+.visual-step-list>article{border:1px solid #eadfee;border-radius:14px;padding:14px;background:#fcf9fd;display:grid;gap:10px}
+.visual-step-list>article>header{display:flex;align-items:center;justify-content:space-between}
+.visual-step-list>article>header button{border:0;background:transparent;color:#b82d4a}
+.advanced-json{margin-top:14px;border:1px solid #eadfee;border-radius:12px;padding:12px}
+.advanced-json summary{cursor:pointer;font-weight:800}
+.advanced-json textarea{width:100%;margin-top:10px}
+.automation-trigger-row{display:flex;gap:12px;align-items:flex-start;border:1px solid #eadfee;border-radius:12px;padding:12px;margin-top:10px}
+.automation-trigger-row div{display:grid;gap:3px}
+.automation-trigger-row code{white-space:normal;word-break:break-word}
+.record-detail-dialog{width:min(900px,calc(100vw - 32px));max-height:90vh;overflow:auto;background:#fff;border-radius:22px;padding:24px;box-shadow:0 30px 80px rgba(36,10,43,.24)}
+.record-detail-dialog>header{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid #eee3f0;padding-bottom:16px}
+.record-detail-dialog>header h2{margin:4px 0}
+.record-detail-image{width:100%;max-height:320px;object-fit:contain;background:#f5eff6;border-radius:16px;margin:18px 0}
+.record-detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:18px}
+.record-detail-grid article{border:1px solid #eadfee;border-radius:14px;padding:14px;display:grid;gap:6px}
+.record-detail-grid article span{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#806d84}
+.record-detail-grid article strong{white-space:pre-wrap;word-break:break-word}
+.record-detail-grid article small{color:#9b8b9f}
+.record-detail-dialog>footer{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+.product-actions{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:760px){.form-grid-two{grid-template-columns:1fr}.product-actions{grid-template-columns:1fr}.record-detail-grid{grid-template-columns:1fr}}
