@@ -1,5 +1,5 @@
 export const activeFields = (schema) => [...(schema?.fields || [])]
-    .filter((field) => field && field.visible !== false)
+    .filter((field) => field && field.visible !== false && String(field.status || 'ACTIVE').toUpperCase() !== 'DEPRECATED')
     .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
 
 export const fieldConfig = (field) => field?.config && typeof field.config === 'object' ? field.config : {}
@@ -48,4 +48,29 @@ export const fieldAccessPolicy = (field) => {
     viewPermissions: Array.isArray(access.viewPermissions) ? access.viewPermissions : [],
     editPermissions: Array.isArray(access.editPermissions) ? access.editPermissions : [],
   }
+}
+
+
+export const isSystemField = (field) =>
+    String(field?.origin || 'CUSTOM').toUpperCase() === 'SYSTEM'
+
+export const isDeprecatedField = (field) =>
+    String(field?.status || 'ACTIVE').toUpperCase() === 'DEPRECATED'
+
+export const groupedFields = (schema) => {
+  const groups = new Map()
+
+  for (const field of activeFields(schema)) {
+    const section = field.section || 'Details'
+    if (!groups.has(section)) groups.set(section, [])
+    groups.get(section).push(field)
+  }
+
+  return [...groups.entries()]
+      .map(([section, fields]) => ({
+        section,
+        sectionOrder: Math.min(...fields.map((field) => field.sectionOrder ?? 0)),
+        fields: fields.sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)),
+      }))
+      .sort((a, b) => a.sectionOrder - b.sectionOrder || a.section.localeCompare(b.section))
 }

@@ -25,7 +25,9 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
+import './schema-ui-sync.css'
 import './App.generic-runtime.css'
+import './launch-core.css'
 import { crmApi, getErrorMessage, resolveMediaUrl } from './api/crmApi'
 import ProductForm from './components/ProductForm'
 import InventoryRecordsView from './components/InventoryRecordsView'
@@ -44,6 +46,7 @@ const currency = new Intl.NumberFormat('en-IN', { style: 'currency', currency: '
 function App() {
   const { user, capabilities: accessCapabilities, hasPermission, canApproveAnyModule, logout } = useAuth()
   const [page, setPage] = useState('schema')
+  const [schemaMode, setSchemaMode] = useState('modules')
   const [currentModule, setCurrentModule] = useState(DEFAULT_MODULE)
   const [records, setRecords] = useState([])
   const [schema, setSchema] = useState(null)
@@ -343,7 +346,7 @@ function App() {
     setSaving(true)
     setError('')
     try {
-      const request = await crmApi.deleteRecord(currentModule, deleteTarget.id, deleteReason)
+      const request = await crmApi.deleteRecord(currentModule, deleteTarget.id)
       setPendingApprovals((current) => [...current, request])
       setDeleteTarget(null)
       setDeleteReason('')
@@ -381,11 +384,14 @@ function App() {
           <nav className="nav-list" aria-label="Application navigation">
             <button className={`nav-item ${page === 'inventory' ? 'active' : ''}`} type="button" onClick={() => setPage('inventory')}><Grid2X2 size={18} /> Workspace</button>
             <button className={`nav-item ${page === 'records' ? 'active' : ''}`} type="button" onClick={() => setPage('records')}><Boxes size={18} /> All records</button>
-            {hasPermission('APP_MODULE_MANAGE') && <><button className={`nav-item ${page === 'schema' ? 'active' : ''}`} type="button" onClick={() => setPage('schema')}><SlidersHorizontal size={18} /> Modules & schema</button><button className="nav-item" type="button" onClick={() => setPage('schema')}><Layers3 size={18} /> Field designer</button></>}
-            {canApproveAnyModule() && <button className={`nav-item ${page === 'approvals' ? 'active' : ''}`} type="button" onClick={() => setPage('approvals')}><ClipboardCheck size={18} /> <span>Approvals</span>{pendingApprovals.length > 0 && <span className="nav-count">{pendingApprovals.length}</span>}</button>}
+            {hasPermission('APP_MODULE_MANAGE') && <>
+              <button className={`nav-item ${page === 'schema' && schemaMode === 'modules' ? 'active' : ''}`} type="button" onClick={() => { setSchemaMode('modules'); setPage('schema') }}><SlidersHorizontal size={18} /> Modules & schema</button>
+              <button className={`nav-item ${page === 'schema' && schemaMode === 'fields' ? 'active' : ''}`} type="button" onClick={() => { setSchemaMode('fields'); setPage('schema') }}><Layers3 size={18} /> Field designer</button>
+            </>}
+
             {hasPermission('APP_USER_MANAGE') && <button className={`nav-item ${page === 'users' ? 'active' : ''}`} type="button" onClick={() => setPage('users')}><Users size={18} /> Users & roles</button>}
-            {hasPermission('APP_WORKFLOW_MANAGE') && <button className={`nav-item ${page === 'automation' ? 'active' : ''}`} type="button" onClick={() => setPage('automation')}><Sparkles size={18} /> Automation</button>}
-            {hasPermission('APP_CONFIGURE') && <button className={`nav-item ${page === 'integrations' ? 'active' : ''}`} type="button" onClick={() => setPage('integrations')}><Layers3 size={18} /> Integrations</button>}
+
+
           </nav>
 
           <div className="sidebar-user"><div className="user-avatar">{(user?.displayName || user?.username || 'U').slice(0,1).toUpperCase()}</div><div><strong>{user?.displayName}</strong><small>{(user?.roles || []).map((role) => typeof role === 'string' ? role : role.roleName || role.roleCode).filter(Boolean).join(' · ')}</small></div><button onClick={logout} title="Sign out"><LogOut size={17}/></button></div>
@@ -429,15 +435,36 @@ function App() {
               hasPermission('APP_MODULE_MANAGE') ? <SchemaBuilder
                   schema={schema}
                   schemas={schemas}
+                  mediaTypes={meta?.mediaTypes || []}
                   module={currentModule || ''}
                   saving={saving}
                   onCreateSchema={createSchema}
                   onSaveSchema={saveSchema}
                   onDeleteSchema={deleteSchema}
                   onDeleteAllSchemas={deleteAllSchemas}
+                  mode={schemaMode}
                   onSelectSchema={(nextModule) => {
                     setCurrentModule(nextModule)
                     setPage('schema')
+                  }}
+                  onDeprecateField={async (field) => {
+                    if (!field?.key || !currentModule) return
+                    if (!window.confirm(`Deprecate "${field.label || field.key}"? Existing values will be retained.`)) return
+                    try {
+                      await crmApi.deprecateField(currentModule, field.key)
+                      await loadSchemas()
+                    } catch (exception) {
+                      setError(getErrorMessage(exception))
+                    }
+                  }}
+                  onRestoreField={async (field) => {
+                    if (!field?.key || !currentModule) return
+                    try {
+                      await crmApi.restoreField(currentModule, field.key)
+                      await loadSchemas()
+                    } catch (exception) {
+                      setError(getErrorMessage(exception))
+                    }
                   }}
               /> : <div className="state-card"><strong>Administrator access required</strong><span>Your role does not allow schema changes.</span></div>
           ) : page === 'records' ? (
@@ -458,7 +485,7 @@ function App() {
                   </div>
                   <div className="topbar-actions">
                     <button className="icon-button" type="button" onClick={loadData} aria-label="Refresh module" title="Refresh"><RefreshCw size={18} className={loading ? 'spin' : ''} /></button>
-                    {hasPermission('APP_MODULE_MANAGE') && <button className="button button-secondary" type="button" onClick={() => setPage('schema')}><SlidersHorizontal size={17} /> Edit schema</button>}
+                    {hasPermission('APP_MODULE_MANAGE') && <button className="button button-secondary" type="button" onClick={() => { setSchemaMode('modules'); setPage('schema') }}><SlidersHorizontal size={17} /> Edit schema</button>}
                     <button className="button button-primary" type="button" onClick={openCreate}><Plus size={18} /> Add record</button>
                   </div>
                 </header>
@@ -533,7 +560,7 @@ function App() {
                                   <p>{subtitle || [data.articleName, data.season, data.hsnCode].filter(Boolean).join(' · ') || 'Schema-driven record'}</p>
                                   <div className="product-price-row">{priceField && <div><small>{priceField.label}</small><strong>{currency.format(Number(data[priceField.key] ?? 0))}</strong></div>}{hasStock && <div className="quantity-pill"><span>{quantityField.label}</span><strong>{quantity}</strong></div>}</div>
                                 </div>
-                                <footer className="product-actions"><button type="button" onClick={() => setViewingRecord(record)}><Eye size={16} /> View</button><button type="button" onClick={() => openEdit(record)}><Pencil size={16} /> Edit</button>{pendingApprovals.some((item) => item.record_id === record.id || item.recordId === record.id) ? <button type="button" disabled className="pending-action"><AlertTriangle size={16} /> Approval pending</button> : capabilities?.delete?.enabled !== false && <button type="button" className="danger-action" onClick={() => setDeleteTarget(record)}><Trash2 size={16} /> {capabilities?.delete?.approvalRequired === false ? 'Delete' : 'Request delete'}</button>}</footer>
+                                <footer className="product-actions"><button type="button" onClick={() => setViewingRecord(record)}><Eye size={16} /> View</button><button type="button" onClick={() => openEdit(record)}><Pencil size={16} /> Edit</button>{pendingApprovals.some((item) => item.record_id === record.id || item.recordId === record.id) ? <button type="button" disabled className="pending-action"><AlertTriangle size={16} /> Approval pending</button> : capabilities?.delete?.enabled !== false && <button type="button" className="danger-action" onClick={() => setDeleteTarget(record)}><Trash2 size={16} /> {capabilities?.delete?.approvalRequired === false ? 'Delete' : 'Delete'}</button>}</footer>
                               </article>
                           )
                         })}
@@ -551,7 +578,7 @@ function App() {
         {deleteTarget && (
             <div className="modal-backdrop confirm-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setDeleteTarget(null)}>
               <section className="confirm-dialog" role="dialog" aria-modal="true" aria-label="Request record deletion">
-                <div className="danger-icon"><Trash2 size={22} /></div><h2>Request deletion approval</h2><p><strong>{String(displayValue(schema, deleteTarget.data || {}, 'TITLE', ['TEXT', 'TEXTAREA'], 'This record'))}</strong> will remain available until an approver accepts this request.</p>
+                <div className="danger-icon"><Trash2 size={22} /></div><h2>Delete record</h2><p><strong>{String(displayValue(schema, deleteTarget.data || {}, 'TITLE', ['TEXT', 'TEXTAREA'], 'This record'))}</strong> will be removed immediately. This action requires Delete permission for this module.</p>
                 <label className="approval-reason-label">Reason for deletion<textarea value={deleteReason} onChange={(event) => setDeleteReason(event.target.value)} placeholder="Duplicate record, incorrect entry, discontinued item…" rows={3} /></label>
                 <div className="confirm-actions"><button className="button button-ghost" type="button" onClick={() => { setDeleteTarget(null); setDeleteReason('') }} disabled={saving}>Cancel</button><button className="button button-danger" type="button" onClick={deleteRecord} disabled={saving || !deleteReason.trim()}>{saving ? <LoaderCircle className="spin" size={18} /> : <Trash2 size={18} />} Submit request</button></div>
               </section>

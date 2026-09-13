@@ -21,12 +21,17 @@ const FIELD_TYPES = [
 ]
 
 const EMPTY_FIELD = {
-  key: '', label: '', type: 'TEXT', section: 'Details', required: false,
+  key: '', label: '', type: 'TEXT', section: 'Details', sectionOrder: 0, required: false,
   searchable: false, visible: true, editable: true, showOnCreate: true, showOnEdit: true,
   showOnList: false, showOnDetail: true, placeholder: '', options: [],
   referenceModule: '', referenceModuleId: '', valueField: 'id', displayFields: [],
   dependsOn: '', referenceFilterField: '', allowedModuleIds: [],
-  visibility: 'PUBLIC', referenceable: true, viewRoles: [], editRoles: [], config: {},
+  visibility: 'PUBLIC', referenceable: true, viewRoles: [], editRoles: [],
+  origin: 'CUSTOM', status: 'ACTIVE',
+  relationshipCardinality: 'MANY_TO_ONE',
+  inverseLabel: '',
+  onDeletePolicy: 'RESTRICT',
+  config: {},
 }
 
 const normalizeModule = (value = '') => value.trim().toUpperCase().replace(/[^A-Z0-9_]+/g, '_')
@@ -113,7 +118,7 @@ function ModuleHierarchy({ schemas, activeModule, onSelectSchema, onDeleteSchema
   )
 }
 
-function FieldEditor({ field, schemaFields, schemas, usedKeys, onCancel, onSave }) {
+function FieldEditor({ field, schemaFields, schemas, mediaTypes, usedKeys, onCancel, onSave }) {
   const [draft, setDraft] = useState(field || EMPTY_FIELD)
   const [optionText, setOptionText] = useState('')
   const [error, setError] = useState('')
@@ -148,8 +153,17 @@ function FieldEditor({ field, schemaFields, schemas, usedKeys, onCancel, onSave 
     if (referenceType && !polymorphicReference && !String(draft.referenceModuleId || '').trim()) throw new Error('Reference module is required.')
     if (polymorphicReference && !(draft.allowedModuleIds || []).length) throw new Error('Select at least one allowed module.')
     if (dependentReference && (!draft.dependsOn || !draft.referenceFilterField)) throw new Error('Select the parent field and reference filter field.')
+    if (draft.type === 'MEDIA' && !mediaTypes.includes(String(draft.config?.mediaType || '').toUpperCase())) {
+      throw new Error('Select a media type provided by the backend.')
+    }
     return {
-      ...draft, key, label: draft.label.trim(), section: draft.section.trim() || 'Details',
+      ...draft,
+      key,
+      label: draft.label.trim(),
+      section: draft.section.trim() || 'Details',
+      sectionOrder: Number(draft.sectionOrder || 0),
+      origin: draft.origin || 'CUSTOM',
+      status: draft.status || 'ACTIVE',
       options: optionType ? normalizeOptions(draft.options) : [],
       referenceModule: referenceType && !polymorphicReference ? normalizeModule(draft.referenceModule) : null,
       referenceModuleId: referenceType && !polymorphicReference ? draft.referenceModuleId : null,
@@ -161,6 +175,9 @@ function FieldEditor({ field, schemaFields, schemas, usedKeys, onCancel, onSave 
       config: { ...(draft.config || {}) },
       dependsOn: dependentReference ? draft.dependsOn : null,
       referenceFilterField: dependentReference ? draft.referenceFilterField.trim() : null,
+      relationshipCardinality: referenceType ? (draft.relationshipCardinality || (String(draft.type).startsWith('MULTI_') ? 'MANY_TO_MANY' : 'MANY_TO_ONE')) : null,
+      inverseLabel: referenceType ? String(draft.inverseLabel || '').trim() || null : null,
+      onDeletePolicy: referenceType ? (draft.onDeletePolicy || 'RESTRICT') : null,
     }
   }
 
@@ -180,9 +197,10 @@ function FieldEditor({ field, schemaFields, schemas, usedKeys, onCancel, onSave 
             {error && <div className="inline-error">{error}</div>}
             <div className="form-grid">
               <div className="form-field"><label>Field label</label><input value={draft.label} onChange={(event) => change('label', event.target.value)} placeholder="Available sizes" /></div>
-              <div className="form-field"><label>Reusable key</label><input value={draft.key} onChange={(event) => change('key', event.target.value)} placeholder="sizeIds" /></div>
-              <div className="form-field"><label>Field type</label><select value={draft.type} onChange={(event) => change('type', event.target.value)}>{FIELD_TYPES.map((type) => <option key={type} value={type}>{type.replaceAll('_', ' ')}</option>)}</select></div>
+              <div className="form-field"><label>Reusable key</label><input value={draft.key} disabled={Boolean(field)} onChange={(event) => change('key', event.target.value)} placeholder="sizeIds" /><small>{field ? "Field key is immutable after creation." : "Generated from label when empty."}</small></div>
+              <div className="form-field"><label>Field type</label><select value={draft.type} disabled={Boolean(field)} onChange={(event) => change('type', event.target.value)}>{FIELD_TYPES.map((type) => <option key={type} value={type}>{type.replaceAll('_', ' ')}</option>)}</select></div>
               <div className="form-field"><label>Form section</label><input value={draft.section} onChange={(event) => change('section', event.target.value)} placeholder="Details" /></div>
+              <div className="form-field"><label>Section order</label><input type="number" min="0" value={draft.sectionOrder ?? 0} onChange={(event) => change('sectionOrder', Number(event.target.value || 0))} /></div>
               <div className="form-field full-width"><label>Placeholder / help text</label><input value={draft.placeholder || ''} onChange={(event) => change('placeholder', event.target.value)} placeholder="Choose one or more sizes" /></div>
             </div>
 
@@ -192,8 +210,32 @@ function FieldEditor({ field, schemaFields, schemas, usedKeys, onCancel, onSave 
               {!polymorphicReference && <div className="form-field"><label>Reference module</label><select value={draft.referenceModuleId || ''} onChange={(event) => { const selected = schemas.find((item) => item.id === event.target.value); change('referenceModuleId', event.target.value); change('referenceModule', selected?.module || '') }}><option value="">Select reusable module</option>{schemas.map((item) => <option key={item.id || item.module} value={item.id || ''}>{'—'.repeat(Math.max(0, (item.depth || 1) - 1))} {item.title || item.module} ({item.module})</option>)}</select></div>}
               {polymorphicReference && <div className="form-field full-width"><label>Allowed modules</label><select multiple value={draft.allowedModuleIds || []} onChange={(event)=>change('allowedModuleIds', Array.from(event.target.selectedOptions).map((item)=>item.value))}>{schemas.map((item)=><option key={item.id} value={item.id}>{item.title || item.module} ({item.module})</option>)}</select></div>}
               <div className="form-field"><label>Display fields</label><input value={(draft.displayFields || []).join(', ')} onChange={(event) => change('displayFields', event.target.value.split(','))} placeholder="sizeCode, sizeLabel" /></div>
+              <div className="form-field"><label>Cardinality</label><select value={draft.relationshipCardinality || 'MANY_TO_ONE'} onChange={(event) => change('relationshipCardinality', event.target.value)}><option value="ONE_TO_ONE">One to one</option><option value="ONE_TO_MANY">One to many</option><option value="MANY_TO_ONE">Many to one</option><option value="MANY_TO_MANY">Many to many</option></select></div>
+              <div className="form-field"><label>Inverse label</label><input value={draft.inverseLabel || ''} onChange={(event) => change('inverseLabel', event.target.value)} placeholder="Products, Orders, Contacts" /></div>
+              <div className="form-field"><label>Delete policy</label><select value={draft.onDeletePolicy || 'RESTRICT'} onChange={(event) => change('onDeletePolicy', event.target.value)}><option value="RESTRICT">Restrict deletion</option><option value="SET_NULL">Unlink reference</option><option value="CASCADE">Cascade delete</option></select></div>
               {dependentReference && <><div className="form-field"><label>Depends on field</label><select value={draft.dependsOn || ''} onChange={(event) => change('dependsOn', event.target.value)}><option value="">Select parent field</option>{schemaFields.filter((item) => item.key !== draft.key).map((item) => <option key={item.key} value={item.key}>{item.label} ({item.key})</option>)}</select></div><div className="form-field"><label>Field in referenced record</label><input value={draft.referenceFilterField || ''} onChange={(event) => change('referenceFilterField', event.target.value)} placeholder="sizeTypeId" /></div></>}
             </div><p className="schema-help">All references are validated inside the same client ID and app ID.</p></div>}
+
+            {draft.type === 'MEDIA' && <div className="option-builder reference-config-card">
+              <label>Media configuration</label>
+              <div className="form-grid">
+                <div className="form-field">
+                  <label>Media type</label>
+                  <select
+                      value={draft.config?.mediaType || ''}
+                      onChange={(event) => setDraft((current) => ({
+                        ...current,
+                        config: { ...(current.config || {}), mediaType: event.target.value },
+                      }))}
+                      required
+                  >
+                    <option value="">Select media type</option>
+                    {mediaTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                  </select>
+                  <small>{mediaTypes.length ? 'Values are loaded from the backend Java enum.' : 'No media types were returned by the backend.'}</small>
+                </div>
+              </div>
+            </div>}
 
             <div className="option-builder"><label>Encapsulation & permissions</label><div className="form-grid">
               <div className="form-field"><label>Visibility</label><select value={draft.visibility || 'PUBLIC'} onChange={(event)=>change('visibility', event.target.value)}><option>PUBLIC</option><option>PROTECTED</option><option>PRIVATE</option></select></div>
@@ -218,7 +260,7 @@ function FieldEditor({ field, schemaFields, schemas, usedKeys, onCancel, onSave 
   )
 }
 
-function SchemaBuilder({ schema, schemas = [], module, saving, onCreateSchema, onSaveSchema, onDeleteSchema, onDeleteAllSchemas, onSelectSchema }) {
+function SchemaBuilder({ schema, schemas = [], mediaTypes = [], module, saving, mode = 'modules', onCreateSchema, onSaveSchema, onDeleteSchema, onDeleteAllSchemas, onSelectSchema, onDeprecateField, onRestoreField }) {
   const [draft, setDraft] = useState(null)
   const [editor, setEditor] = useState(null)
   const [newSchemaOpen, setNewSchemaOpen] = useState(false)
@@ -226,13 +268,29 @@ function SchemaBuilder({ schema, schemas = [], module, saving, onCreateSchema, o
   const [newTitle, setNewTitle] = useState('')
   const [newParentSchemaId, setNewParentSchemaId] = useState('')
   const [newRepeatable, setNewRepeatable] = useState(true)
+  const fieldsOnly = mode === 'fields'
 
   useEffect(() => {
     if (!schema) {
       setDraft(null)
       return
     }
-    setDraft({ relationshipType:'COMPOSITION', extendsSchemaId:null, recordVisibility:'APP_ONLY', allowExternalReference:true, ...schema, module: schema.module || module, title: schema.title || 'Inventory schema', parentSchemaId: schema.parentSchemaId || null, depth: schema.depth || 1, repeatable: schema.repeatable !== false, displayOrder: schema.displayOrder || 0, fields: [...(schema.fields || [])].sort((a,b)=>(a.displayOrder??0)-(b.displayOrder??0)).map((field,index)=>({ visible:true, editable:true, showOnCreate:true, showOnEdit:true, showOnList:false, showOnDetail:true, ...field, displayOrder:index+1, options:field.options||[] })) })
+    setDraft({ relationshipType:'COMPOSITION', extendsSchemaId:null, recordVisibility:'APP_ONLY', allowExternalReference:true, ...schema, module: schema.module || module, title: schema.title || 'Inventory schema', parentSchemaId: schema.parentSchemaId || null, depth: schema.depth || 1, repeatable: schema.repeatable !== false, displayOrder: schema.displayOrder || 0, fields: [...(schema.fields || [])].sort((a,b)=>(a.displayOrder??0)-(b.displayOrder??0)).map((field,index)=>({
+        visible:true,
+        editable:true,
+        showOnCreate:true,
+        showOnEdit:true,
+        showOnList:false,
+        showOnDetail:true,
+        origin:'CUSTOM',
+        status:'ACTIVE',
+        sectionOrder:0,
+        relationshipCardinality:String(field?.type || '').startsWith('MULTI_') ? 'MANY_TO_MANY' : 'MANY_TO_ONE',
+        onDeletePolicy:'RESTRICT',
+        ...field,
+        displayOrder:index+1,
+        options:field.options||[],
+      })) })
   }, [schema, module])
 
   const fields = draft?.fields || []
@@ -267,11 +325,11 @@ function SchemaBuilder({ schema, schemas = [], module, saving, onCreateSchema, o
   </section>
 
   return <section className="schema-workspace">
-    <div className="schema-toolbar"><div><span className="eyebrow">Schema-driven CRM</span><h1>CRM schema & fields</h1><p>Each module can own fields, child modules and reusable module references.</p></div><div className="topbar-actions"><button className="button button-secondary" type="button" onClick={()=>setNewSchemaOpen(true)}><Plus size={17}/> Add module</button><button className="button button-secondary danger-action" type="button" onClick={()=>onDeleteSchema?.(draft)}><Trash2 size={17}/> Delete module</button><button className="button button-primary" type="button" onClick={persist} disabled={saving}>{saving?<LoaderCircle className="spin" size={17}/>:<Save size={17}/>} Save module</button></div></div>
+    <div className="schema-toolbar"><div><span className="eyebrow">{fieldsOnly ? 'Field configuration' : 'Schema-driven CRM'}</span><h1>{fieldsOnly ? 'Field designer' : 'Modules & schema'}</h1><p>{fieldsOnly ? 'Configure field behavior, lifecycle, ordering and relationships for the selected module.' : 'Each module can own fields, child modules and reusable module references.'}</p></div><div className="topbar-actions"><button className="button button-secondary" type="button" onClick={()=>setNewSchemaOpen(true)}><Plus size={17}/> Add module</button><button className="button button-secondary danger-action" type="button" onClick={()=>onDeleteSchema?.(draft)}><Trash2 size={17}/> Delete module</button><button className="button button-primary" type="button" onClick={persist} disabled={saving}>{saving?<LoaderCircle className="spin" size={17}/>:<Save size={17}/>} Save module</button></div></div>
 
-    <ModuleHierarchy schemas={schemas.length ? schemas : [draft]} activeModule={module} onSelectSchema={onSelectSchema} onDeleteSchema={onDeleteSchema} onDeleteAllSchemas={onDeleteAllSchemas} deleting={saving}/>
+    {!fieldsOnly && <ModuleHierarchy schemas={schemas.length ? schemas : [draft]} activeModule={module} onSelectSchema={onSelectSchema} onDeleteSchema={onDeleteSchema} onDeleteAllSchemas={onDeleteAllSchemas} deleting={saving}/>}
 
-    <div className="schema-summary-card"><div className="schema-icon"><Layers3 size={24}/></div><div className="schema-name-fields">
+    <div className={`schema-summary-card ${fieldsOnly ? 'field-designer-summary' : ''}`}><div className="schema-icon"><Layers3 size={24}/></div><div className="schema-name-fields">
       <label><span>Active module</span><select value={module} onChange={(event)=>onSelectSchema?.(event.target.value)}>{(schemas.length?schemas:[draft]).map((item)=><option key={item.module} value={item.module}>{'—'.repeat(Math.max(0,(item.depth||1)-1))} {item.title||item.module} ({item.module})</option>)}</select></label>
       <label><span>Module title</span><input value={draft.title||''} onChange={(event)=>setDraft((current)=>({...current,title:event.target.value}))}/></label>
       <label><span>Module key</span><input value={draft.module||''} readOnly/></label>
@@ -281,13 +339,21 @@ function SchemaBuilder({ schema, schemas = [], module, saving, onCreateSchema, o
       <label><span>Record visibility</span><select value={draft.recordVisibility||'APP_ONLY'} onChange={(event)=>setDraft((current)=>({...current,recordVisibility:event.target.value}))}><option>PUBLIC</option><option>CLIENT_ONLY</option><option>APP_ONLY</option><option>PRIVATE</option></select></label>
       <label className="check-card"><input type="checkbox" checked={draft.allowExternalReference!==false} onChange={(event)=>setDraft((current)=>({...current,allowExternalReference:event.target.checked}))}/><span><Check size={15}/> Allow references</span></label>
       <label className="check-card"><input type="checkbox" checked={draft.repeatable!==false} onChange={(event)=>setDraft((current)=>({...current,repeatable:event.target.checked}))}/><span><Check size={15}/> Repeatable records</span></label>
+      {!fieldsOnly && <>
+        <label><span>Record label field</span><select value={draft.recordLabelField || ''} onChange={(event)=>setDraft((current)=>({...current,recordLabelField:event.target.value||null}))}><option value="">Automatic</option>{fields.filter((field)=>field.status!=='DEPRECATED').map((field)=><option key={field.key} value={field.key}>{field.label} ({field.key})</option>)}</select></label>
+        <label><span>Default layout</span><select value={draft.defaultView || 'CARD'} onChange={(event)=>setDraft((current)=>({...current,defaultView:event.target.value}))}><option value="CARD">Card</option><option value="TABLE">Table</option></select></label>
+        <label><span>Default sort field</span><select value={draft.defaultSortField || ''} onChange={(event)=>setDraft((current)=>({...current,defaultSortField:event.target.value||null}))}><option value="">Created date</option>{fields.filter((field)=>field.status!=='DEPRECATED').map((field)=><option key={field.key} value={field.key}>{field.label} ({field.key})</option>)}</select></label>
+        <label><span>Sort direction</span><select value={draft.defaultSortDirection || 'ASC'} onChange={(event)=>setDraft((current)=>({...current,defaultSortDirection:event.target.value}))}><option value="ASC">Ascending</option><option value="DESC">Descending</option></select></label>
+      </>}
     </div><div className="schema-count"><strong>{fields.length}</strong><span>Fields in module</span></div></div>
 
     <div className="schema-fields-panel"><div className="panel-header schema-panel-header"><div><h2>Module fields</h2><p>Add several fields without closing the dialog. Use references for shared modules like Sizes, Colours and Brands.</p></div><button className="button button-primary compact" type="button" onClick={()=>setEditor({field:null})}><Plus size={17}/> Add fields</button></div>
-      {!fields.length?<div className="state-card empty-state"><div className="empty-illustration"><Layers3 size={32}/></div><strong>This module has no fields</strong><span>Add fields or create child modules. Both are allowed on the same module.</span><button className="button button-primary" type="button" onClick={()=>setEditor({field:null})}><Plus size={17}/> Add fields</button></div>:<div className="schema-field-list">{fields.map((field,index)=><article className="schema-field-row" key={`${field.key}-${index}`}><div className="field-order-actions"><button type="button" onClick={()=>move(index,-1)} disabled={index===0}><ArrowUp size={15}/></button><span>{index+1}</span><button type="button" onClick={()=>move(index,1)} disabled={index===fields.length-1}><ArrowDown size={15}/></button></div><div className="field-main"><strong>{field.label}</strong><code>{field.key}</code><span>{field.section||'Details'}</span></div><div className="field-type-badge">{field.type?.replaceAll('_',' ')}</div><div className="field-rules">{field.required&&<span>Required</span>}{field.searchable&&<span>Searchable</span>}{field.showOnList&&<span>List</span>}{field.showOnDetail!==false&&<span>Detail</span>}{field.visible===false&&<span>Disabled</span>}</div><div className="field-options-preview">{['SELECT','MULTI_SELECT'].includes(field.type)?(field.options||[]).slice(0,3).join(', ')||'No options':['REFERENCE','MULTI_REFERENCE','DEPENDENT_REFERENCE'].includes(field.type)?`→ ${field.referenceModule||'Module'}`:field.placeholder||'—'}</div><div className="field-row-actions"><button type="button" onClick={()=>setEditor({field,index})}><Pencil size={16}/></button><button className="danger-action" type="button" onClick={()=>setDraft((current)=>({...current,fields:current.fields.filter((_,itemIndex)=>itemIndex!==index)}))}><Trash2 size={16}/></button></div></article>)}</div>}
+      {!fields.length?<div className="state-card empty-state"><div className="empty-illustration"><Layers3 size={32}/></div><strong>This module has no fields</strong><span>Add fields or create child modules. Both are allowed on the same module.</span><button className="button button-primary" type="button" onClick={()=>setEditor({field:null})}><Plus size={17}/> Add fields</button></div>:<div className="schema-field-list">{fields.map((field,index)=><article className="schema-field-row" key={`${field.key}-${index}`}><div className="field-order-actions"><button type="button" onClick={()=>move(index,-1)} disabled={index===0}><ArrowUp size={15}/></button><span>{index+1}</span><button type="button" onClick={()=>move(index,1)} disabled={index===fields.length-1}><ArrowDown size={15}/></button></div><div className="field-main"><strong>{field.label}</strong><code>{field.key}</code><span>{field.section||'Details'}</span></div><div className="field-type-badge">{field.type?.replaceAll('_',' ')}</div><div className="field-rules">{field.origin==='SYSTEM'&&<span>System</span>}{field.status==='DEPRECATED'&&<span>Deprecated</span>}{field.required&&field.status!=='DEPRECATED'&&<span>Required</span>}{field.searchable&&field.status!=='DEPRECATED'&&<span>Searchable</span>}{field.editable!==false&&field.status!=='DEPRECATED'&&<span>Editable</span>}{field.showOnList&&field.status!=='DEPRECATED'&&<span>List</span>}{field.showOnDetail!==false&&field.status!=='DEPRECATED'&&<span>Detail</span>}</div><div className="field-options-preview">{['SELECT','MULTI_SELECT'].includes(field.type)?(field.options||[]).slice(0,3).join(', ')||'No options':['REFERENCE','MULTI_REFERENCE','DEPENDENT_REFERENCE','POLYMORPHIC_REFERENCE','MULTI_POLYMORPHIC_REFERENCE'].includes(field.type)?`${field.relationshipCardinality || ''} → ${field.referenceModule||'Module'} · ${field.onDeletePolicy || 'RESTRICT'}`:field.placeholder||'—'}</div><div className="field-row-actions"><button type="button" onClick={()=>setEditor({field,index})}><Pencil size={16}/></button>{field?.config?.deprecated
+          ? <button type="button" title="Restore field" onClick={()=>onRestoreField?.(field)}><Check size={16}/></button>
+          : <button className="danger-action" type="button" title={field.origin==='SYSTEM' ? 'System field cannot be deprecated' : 'Deprecate field'} disabled={field.origin==='SYSTEM'} onClick={()=>onDeprecateField?.(field)}><Trash2 size={16}/></button>}</div></article>)}</div>}
     </div>
 
-    {editor&&<FieldEditor field={editor.field} schemaFields={fields} schemas={schemas} usedKeys={usedKeys} onCancel={()=>setEditor(null)} onSave={saveField}/>}
+    {editor&&<FieldEditor field={editor.field} schemaFields={fields} schemas={schemas} mediaTypes={mediaTypes} usedKeys={usedKeys} onCancel={()=>setEditor(null)} onSave={saveField}/>}
 
     {newSchemaOpen&&<div className="modal-backdrop confirm-backdrop" role="presentation" onMouseDown={(event)=>event.target===event.currentTarget&&setNewSchemaOpen(false)}><form className="new-schema-dialog" onSubmit={(event)=>{event.preventDefault();const nextModule=normalizeModule(newModule);if(!nextModule||!newTitle.trim())return;onCreateSchema({module:nextModule,title:newTitle.trim(),fields:[],requiredFields:[],allowedFields:[],searchFields:[],uniqueRules:[],parentSchemaId:newParentSchemaId||null,repeatable:newRepeatable,displayOrder:0,active:true});setNewSchemaOpen(false);setNewModule('');setNewTitle('');setNewParentSchemaId('');setNewRepeatable(true)}}><header className="field-editor-header"><div><span className="eyebrow">Reusable business module</span><h2>Create module</h2></div><button className="icon-button" type="button" onClick={()=>setNewSchemaOpen(false)}><X size={19}/></button></header><div className="field-editor-body"><div className="form-field"><label>Module title</label><input value={newTitle} onChange={(event)=>setNewTitle(event.target.value)} placeholder="Sizes"/></div><div className="form-field"><label>Module key</label><input value={newModule} onChange={(event)=>setNewModule(event.target.value)} placeholder="SIZES"/></div><div className="form-field"><label>Parent module</label><select value={newParentSchemaId} onChange={(event)=>setNewParentSchemaId(event.target.value)}><option value="">None — reusable level 1 module</option>{schemas.filter((item)=>(item.depth||1)<5).map((item)=><option key={item.id} value={item.id}>{'—'.repeat(Math.max(0,(item.depth||1)-1))} {item.title||item.module}</option>)}</select></div><label className="check-card"><input type="checkbox" checked={newRepeatable} onChange={(event)=>setNewRepeatable(event.target.checked)}/><span><Check size={15}/> Repeatable records</span></label><p className="schema-help">Choose no parent for a reusable master module such as SIZES. Other modules can reference its records through REFERENCE or MULTI REFERENCE fields.</p></div><footer className="field-editor-footer"><button className="button button-ghost" type="button" onClick={()=>setNewSchemaOpen(false)}>Cancel</button><button className="button button-primary" type="submit"><Plus size={17}/> Create module</button></footer></form></div>}
   </section>

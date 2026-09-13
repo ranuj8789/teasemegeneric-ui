@@ -17,6 +17,12 @@ const emptyUser = {
   roleIds: [],
 }
 
+const LAUNCH_MODULE_PERMISSIONS = [
+  { permissionKey: 'MODULE_VIEW', permissionName: 'View', description: 'View this module and its records.' },
+  { permissionKey: 'MODULE_RECORD_EDIT', permissionName: 'Edit', description: 'Create and edit records in this module.' },
+  { permissionKey: 'MODULE_RECORD_DELETE', permissionName: 'Delete', description: 'Directly delete records in this module.' },
+]
+
 const emptyRole = {
   roleName: '',
   roleCode: '',
@@ -155,7 +161,10 @@ export default function UserAdmin({
 
       setUsers(userRows)
       setRoles(roleRows.filter((item) => item?.active !== false))
-      setPermissions(permissionRows)
+      setPermissions(permissionRows.filter((item) =>
+          item?.scopeType !== 'MODULE' ||
+          LAUNCH_MODULE_PERMISSIONS.some((permission) => permission.permissionKey === item.permissionKey)
+      ))
     } catch (e) {
       setError(getErrorMessage(e))
     } finally {
@@ -316,10 +325,9 @@ export default function UserAdmin({
         <header className="access-hero">
           <div>
             <span className="eyebrow">Access configuration</span>
-            <h1>Users, roles and permissions</h1>
+            <h1>Users and module roles</h1>
             <p>
-              Assign authority by app or module permission. Role names such
-              as Owner, Manager or Munshi are display labels only.
+              Assign each user a role for each module. Module roles use only View, Edit and Delete.
             </p>
           </div>
 
@@ -363,7 +371,7 @@ export default function UserAdmin({
                   onClick={() => setActivePanel('roles')}
               >
                 <ShieldCheck size={17} />
-                Roles & permissions
+                Module roles
               </button>
           )}
         </div>

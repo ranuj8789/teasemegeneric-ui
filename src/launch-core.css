@@ -1,0 +1,11 @@
+
+/* Launch core: schema and module role polish */
+.access-page,.schema-page{max-width:1500px;margin:0 auto}
+.permission-choice-grid label{border:1px solid #eadfee;border-radius:14px;padding:14px;background:#fff;transition:.18s ease}
+.permission-choice-grid label:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(58,24,66,.08)}
+.permission-choice-grid label.selected{border-color:#7b3f88;background:#fbf6fc}
+.schema-field-row{border:1px solid #eadfee;border-radius:14px;background:#fff}
+.schema-field-row:has(.field-rules span:nth-child(1)){box-shadow:0 5px 18px rgba(65,31,72,.04)}
+.field-editor input:disabled{background:#f3eef4;color:#766a79;cursor:not-allowed}
+.field-editor small{display:block;color:#8a7c8e;margin-top:5px}
+.field-rules span{border-radius:999px}

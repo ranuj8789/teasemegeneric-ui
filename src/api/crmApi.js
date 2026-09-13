@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const API_ORIGIN =
-    import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083'
+    import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
 const api = axios.create({
   baseURL: API_ORIGIN,
@@ -98,8 +98,12 @@ export const crmApi = {
     return this.requestOperation({ operation: 'DELETE', targetType: 'SCHEMA', module, hard, reason })
   },
 
-  async deleteField(module, fieldKey, reason = '') {
-    return this.requestOperation({ operation: 'DELETE', targetType: 'FIELD', module, fieldKey, reason })
+  async deprecateField(module, fieldKey) {
+    return dataOf(await api.post(`/api/crm/schemas/${module}/fields/${fieldKey}/deprecate`))
+  },
+
+  async restoreField(module, fieldKey) {
+    return dataOf(await api.post(`/api/crm/schemas/${module}/fields/${fieldKey}/restore`))
   },
 
   async listSchemaVersions(module) {
@@ -180,8 +184,8 @@ export const crmApi = {
     )
   },
 
-  async deleteRecord(module, id, reason = '') {
-    return this.requestOperation({ operation: 'DELETE', targetType: 'RECORD', module, recordId: id, reason })
+  async deleteRecord(module, id) {
+    return dataOf(await api.delete(`/api/crm/${module}/${id}`))
   },
 
   async uploadMedia(

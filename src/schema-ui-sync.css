@@ -1,0 +1,60 @@
+
+.schema-workspace .schema-toolbar {
+  align-items: flex-start;
+}
+
+.field-designer-summary {
+  position: sticky;
+  top: 12px;
+  z-index: 5;
+}
+
+.field-editor input:disabled,
+.field-editor select:disabled,
+.schema-name-fields input[readonly] {
+  background: #f4eff5;
+  color: #756a79;
+  cursor: not-allowed;
+}
+
+.field-editor small {
+  display: block;
+  margin-top: 5px;
+  color: #887a8d;
+}
+
+.schema-field-row {
+  grid-template-columns: auto minmax(220px,1.5fr) minmax(120px,.7fr) minmax(250px,1.3fr) minmax(220px,1fr) auto;
+}
+
+.field-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.field-rules span {
+  border-radius: 999px;
+}
+
+.field-options-preview {
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.field-row-actions button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 980px) {
+  .schema-field-row {
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .field-type-badge,
+  .field-rules,
+  .field-options-preview {
+    grid-column: 2 / -1;
+  }
+}
